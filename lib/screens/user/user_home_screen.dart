@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/firebase_service.dart';
+import '../register_screen.dart';
 import '../../models/restaurant.dart';
-import '../../models/menu_item.dart';
 import 'askidaki_urunler_screen.dart';
 import 'map_screen.dart';
 import 'profile_screen.dart';
@@ -32,43 +33,10 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   }
 
   void _onReserve(Restaurant restaurant) {
-    // Demo askı ürünleri
-    final demoAskiItems = [
-      MenuItem(
-        id: '1',
-        name: 'Mercimek Çorbası',
-        price: 0,
-        quantity: 2,
-        categoryId: '1',
-      ),
-      MenuItem(
-        id: '2',
-        name: 'Ezogelin Çorbası',
-        price: 0,
-        quantity: 1,
-        categoryId: '1',
-      ),
-      MenuItem(
-        id: '3',
-        name: 'Döner Porsiyon',
-        price: 0,
-        quantity: 3,
-        categoryId: '2',
-      ),
-      MenuItem(
-        id: '4',
-        name: 'Köfte Ekmek',
-        price: 0,
-        quantity: 2,
-        categoryId: '2',
-      ),
-    ];
-
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            ReservationScreen(restaurant: restaurant, askiItems: demoAskiItems),
+        builder: (context) => ReservationScreen(restaurant: restaurant),
       ),
     );
   }
@@ -168,7 +136,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
             right: 16,
-            bottom: 40,
+            bottom: 20,
           ),
           decoration: const BoxDecoration(
             color: AppColors.primaryGreen,
@@ -177,45 +145,59 @@ class _UserHomeScreenState extends State<UserHomeScreen>
               bottomRight: Radius.circular(24),
             ),
           ),
-          child: Column(
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              // Logo
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  width: 70,
-                  height: 70,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'P',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryGreen,
-                          ),
+              Positioned(
+                left: 0,
+                child: IconButton(
+                  icon: const Icon(Icons.logout, color: AppColors.white),
+                  onPressed: () async {
+                    await FirebaseService.signOut();
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
                         ),
-                      ),
-                    );
+                        (route) => false,
+                      );
+                    }
                   },
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Paydaş',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
                   color: AppColors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 60,
+                        height: 60,
+                        decoration: const BoxDecoration(
+                          color: AppColors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'P',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryGreen,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ],

@@ -1,185 +1,238 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
+import '../../services/firebase_service.dart';
+import '../register_screen.dart';
 
 class BusinessProfileScreen extends StatelessWidget {
   final String businessName;
-  final String phone;
-  final String address;
-  final String city;
-  final String district;
+  final String businessId;
 
   const BusinessProfileScreen({
     super.key,
     required this.businessName,
-    this.phone = '',
-    this.address = '',
-    this.city = '',
-    this.district = '',
+    required this.businessId,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: Column(
-        children: [
-          // AppBar
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 16,
-              right: 16,
-              bottom: 24,
-            ),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-            ),
-            child: Column(
-              children: [
-                Row(
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseService.businesses.doc(businessId).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('Bir hata oluştu'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+          final stats = data['stats'] as Map<String, dynamic>? ?? {};
+
+          final phone = data['phone'] as String? ?? '';
+          final address = data['address'] as String? ?? '';
+          final city = data['city'] as String? ?? '';
+          final district = data['district'] as String? ?? '';
+
+          final totalAski = stats['totalAski'] ?? 0;
+          final totalDelivered = stats['totalDelivered'] ?? 0;
+
+          return Column(
+            children: [
+              // AppBar
+              Container(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  left: 16,
+                  right: 16,
+                  bottom: 24,
+                ),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryGreen,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.white,
-                      ),
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: AppColors.white,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () {
+                            // Düzenleme yapılabilir
+                          },
+                          icon: const Icon(Icons.edit, color: AppColors.white),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {
-                        // Düzenleme
-                      },
-                      icon: const Icon(Icons.edit, color: AppColors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                // İşletme logosu
-                CircleAvatar(
-                  radius: 45,
-                  backgroundColor: AppColors.white.withOpacity(0.2),
-                  child: Text(
-                    businessName.isNotEmpty
-                        ? businessName[0].toUpperCase()
-                        : 'İ',
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  businessName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.white,
-                  ),
-                ),
-                Text(
-                  'Restoran',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.white.withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-
-                  // İletişim bilgileri
-                  _buildSectionTitle('İletişim Bilgileri'),
-                  _buildInfoCard(
-                    Icons.phone,
-                    'Telefon',
-                    phone.isNotEmpty ? phone : '+90 555 123 45 67',
-                  ),
-                  _buildInfoCard(
-                    Icons.location_on,
-                    'Adres',
-                    address.isNotEmpty
-                        ? address
-                        : 'Merkez Mah. Atatürk Cad. No:123',
-                  ),
-                  _buildInfoCard(
-                    Icons.location_city,
-                    'İl / İlçe',
-                    '${city.isNotEmpty ? city : 'İstanbul'} / ${district.isNotEmpty ? district : 'Kadıköy'}',
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // İstatistikler
-                  _buildSectionTitle('İstatistikler'),
-                  Row(
-                    children: [
-                      Expanded(child: _buildStatCard('156', 'Askıya Eklenen')),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildStatCard('142', 'Teslim Edilen')),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildStatCard('14', 'Bekleyen')),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Çalışma saatleri
-                  _buildSectionTitle('Çalışma Saatleri'),
-                  _buildInfoCard(
-                    Icons.access_time,
-                    'Hafta içi',
-                    '09:00 - 22:00',
-                  ),
-                  _buildInfoCard(
-                    Icons.access_time,
-                    'Hafta sonu',
-                    '10:00 - 23:00',
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Çıkış yap
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst);
-                      },
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Çıkış Yap'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: Colors.red),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // İşletme logosu
+                    CircleAvatar(
+                      radius: 45,
+                      backgroundColor: AppColors.white.withOpacity(0.2),
+                      child: Text(
+                        businessName.isNotEmpty
+                            ? businessName[0].toUpperCase()
+                            : 'İ',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.white,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      businessName,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.white,
+                      ),
+                    ),
+                    Text(
+                      'Restoran',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ],
+
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+
+                      // İletişim bilgileri
+                      _buildSectionTitle('İletişim Bilgileri'),
+                      _buildInfoCard(
+                        Icons.phone,
+                        'Telefon',
+                        phone.isNotEmpty ? phone : '-',
+                      ),
+                      _buildInfoCard(
+                        Icons.location_on,
+                        'Adres',
+                        address.isNotEmpty ? address : '-',
+                      ),
+                      _buildInfoCard(
+                        Icons.location_city,
+                        'İl / İlçe',
+                        '${city.isNotEmpty ? city : '-'} / ${district.isNotEmpty ? district : '-'}',
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // İstatistikler
+                      _buildSectionTitle('İstatistikler'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              totalAski.toString(),
+                              'Askıya Eklenen',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              totalDelivered.toString(),
+                              'Teslim Edilen',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Bekleyen Sayısı (Ayrı Stream)
+                          Expanded(
+                            child: StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseService.businesses
+                                  .doc(businessId)
+                                  .collection('orders')
+                                  .where('status', isEqualTo: 'pending')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final pendingCount = snapshot.hasData
+                                    ? snapshot.data!.size
+                                    : 0;
+                                return _buildStatCard(
+                                  pendingCount.toString(),
+                                  'Bekleyen',
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Çalışma saatleri (Şimdilik statik, sonra eklenebilir)
+                      _buildSectionTitle('Çalışma Saatleri'),
+                      _buildInfoCard(
+                        Icons.access_time,
+                        'Hafta içi',
+                        '09:00 - 22:00',
+                      ),
+                      _buildInfoCard(
+                        Icons.access_time,
+                        'Hafta sonu',
+                        '10:00 - 23:00',
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Çıkış yap
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            await FirebaseService.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) => const RegisterScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Çıkış Yap'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: const BorderSide(color: Colors.red),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -214,6 +267,7 @@ class BusinessProfileScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.primaryGreen.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
+              // ignore: deprecated_member_use
             ),
             child: Icon(icon, color: AppColors.primaryGreen, size: 20),
           ),

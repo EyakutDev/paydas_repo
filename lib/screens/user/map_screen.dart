@@ -50,11 +50,6 @@ class MapScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back, color: AppColors.white),
-                ),
-                const SizedBox(width: 12),
                 const Icon(Icons.map_outlined, color: AppColors.white),
                 const SizedBox(width: 12),
                 const Expanded(

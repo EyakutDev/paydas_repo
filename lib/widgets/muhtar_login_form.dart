@@ -40,12 +40,13 @@ class _MuhtarLoginFormState extends State<MuhtarLoginForm> {
     // Simüle giriş
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_validCodes.contains(_codeController.text.toUpperCase())) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) =>
                 const MuhtarHomeScreen(muhtarName: 'Kadıköy Muhtarlığı'),
           ),
+          (route) => false,
         );
       } else {
         setState(() => _isLoading = false);

@@ -74,20 +74,7 @@ class MenuItemCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.inputBackground,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'x${item.quantity}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
+
             if (onSendToAski != null) ...[
               const SizedBox(width: 12),
               GestureDetector(

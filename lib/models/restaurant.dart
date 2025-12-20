@@ -36,4 +36,16 @@ class Restaurant {
       askiItemCount: askiItemCount,
     );
   }
+  factory Restaurant.fromMap(Map<String, dynamic> map, String id) {
+    return Restaurant(
+      id: id,
+      name: map['name'] ?? '',
+      address: map['address'] ?? '',
+      distance: '1.2km', // Hesaplama yapılana kadar dummy
+      imageUrl: map['imageUrl'],
+      latitude: map['latitude'] ?? 41.0082,
+      longitude: map['longitude'] ?? 28.9784,
+      askiItemCount: map['askiCount'] ?? 0, // Counter field varsa
+    );
+  }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/restaurant.dart';
 import '../../models/menu_item.dart';
+import '../../services/firebase_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Restaurant restaurant;
@@ -26,13 +28,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void _processPayment() async {
     setState(() => _isProcessing = true);
 
-    // Simüle edilmiş ödeme işlemi
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Simüle edilmiş ödeme işlemi gecikmesi
+      await Future.delayed(const Duration(seconds: 1));
 
-    setState(() {
-      _isProcessing = false;
-      _isSuccess = true;
-    });
+      final userId =
+          FirebaseService.currentUserId ??
+          // ignore: deprecated_member_use
+          FirebaseAuth.instance.currentUser?.uid;
+
+      if (userId == null) {
+        throw Exception('Kullanıcı oturumu bulunamadı');
+      }
+
+      // Bağış işlemini gerçekleştir (Geçmişe ekle + Stoğa ekle)
+      await FirebaseService.processDonation(
+        userId: userId,
+        restaurantId: widget.restaurant.id,
+        restaurantName: widget.restaurant.name,
+        items: widget.items,
+        totalPrice: widget.totalPrice,
+      );
+
+      setState(() {
+        _isProcessing = false;
+        _isSuccess = true;
+      });
+    } catch (e) {
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Hata oluştu: $e')));
+    }
   }
 
   @override

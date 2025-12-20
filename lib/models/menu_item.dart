@@ -32,6 +32,28 @@ class MenuItem {
       isOnAski: isOnAski ?? this.isOnAski,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'quantity': quantity,
+      'categoryId': categoryId,
+      'isOnAski': isOnAski,
+    };
+  }
+
+  factory MenuItem.fromMap(Map<String, dynamic> map) {
+    return MenuItem(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      price: (map['price'] ?? 0).toDouble(),
+      quantity: map['quantity'] ?? 1,
+      categoryId: map['categoryId'] ?? '',
+      isOnAski: map['isOnAski'] ?? false,
+    );
+  }
 }
 
 class MenuCategory {
@@ -47,6 +69,24 @@ class MenuCategory {
       id: id ?? this.id,
       name: name ?? this.name,
       items: items ?? this.items,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'items': items.map((x) => x.toMap()).toList(),
+    };
+  }
+
+  factory MenuCategory.fromMap(Map<String, dynamic> map) {
+    return MenuCategory(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      items: List<MenuItem>.from(
+        (map['items'] ?? []).map((x) => MenuItem.fromMap(x)),
+      ),
     );
   }
 }

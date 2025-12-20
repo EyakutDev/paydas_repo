@@ -31,45 +31,35 @@ class _RegisterScreenState extends State<RegisterScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: Column(
-        children: [
-          // ===============================
-          // YEŞİL HEADER
-          // ===============================
-          Container(
-            width: double.infinity,
-            height: 200, // Logo için büyütüldü
+      appBar: AppBar(
+        toolbarHeight: 150, // Daha küçük bar
+        backgroundColor: AppColors.primaryGreen,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+        ),
+        title: Container(
+          height: 110,
+          width: 110,
+          padding: const EdgeInsets.all(12), // Beyaz çember içi boşluk
+          decoration: const BoxDecoration(
+            color: AppColors.white, // Beyaz arka plan
+            shape: BoxShape.circle, // Yuvarlak
+          ),
+          child: Container(
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Center(
-                child: Image.asset(
-                  'assets/images/logo.png',
-
-                  // 🔥 SADECE LOGO BÜYÜTÜLDÜ
-                  width: 200,
-                  height: 200,
-
-                  fit: BoxFit.contain,
-
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
-                      Icons.restaurant,
-                      size: 80,
-                      color: AppColors.white,
-                    );
-                  },
-                ),
+              image: DecorationImage(
+                image: AssetImage('assets/images/logo.png'),
+                fit: BoxFit.contain,
               ),
             ),
           ),
-
+        ),
+      ),
+      body: Column(
+        children: [
           const SizedBox(height: 24),
 
           // ===============================

@@ -20,6 +20,23 @@ class AskiItem {
     this.reservedByUserName,
     this.reservedAt,
   });
+
+  factory AskiItem.fromMap(Map<String, dynamic> map, String docId) {
+    // MenuItem'ı map'ten oluşturuyoruz (Firebase'de düz olarak saklanıyor)
+    final menuItem = MenuItem.fromMap(map);
+    return AskiItem(
+      id: docId,
+      menuItem: menuItem,
+      quantity: map['quantity'] ?? 0,
+      addedAt: map['createdAt'] != null
+          ? (map['createdAt'] as dynamic).toDate()
+          : DateTime.now(),
+      status: AskiStatus.values.firstWhere(
+        (e) => e.toString() == 'AskiStatus.${map['status'] ?? 'available'}',
+        orElse: () => AskiStatus.available,
+      ),
+    );
+  }
 }
 
 enum AskiStatus {
@@ -44,7 +61,39 @@ class ReservationItem {
     required this.userName,
     required this.reservedAt,
     this.status = ReservationStatus.pending,
+    this.code,
   });
+
+  final String? code;
+
+  factory ReservationItem.fromMap(Map<String, dynamic> map, String docId) {
+    // AskiItem'ı basitleştirilmiş şekilde oluşturuyoruz
+    final menuItem = MenuItem(
+      id: map['itemId'] ?? '',
+      name: map['itemName'] ?? '',
+      price: 0, // Fiyat bilgisi rezervasyon kaydında yoksa 0
+      categoryId: '',
+    );
+
+    return ReservationItem(
+      id: docId,
+      askiItem: AskiItem(
+        id: map['itemId'] ?? '',
+        menuItem: menuItem,
+        quantity: 1, // Rezervasyon 1 adet varsayılıyor
+        addedAt: DateTime.now(),
+      ),
+      userId: map['visitorId'] ?? '',
+      userName: 'Müşteri', // İsim kaydı yoksa varsayılan
+      reservedAt: (map['createdAt'] as dynamic).toDate(),
+      status: ReservationStatus.values.firstWhere(
+        (e) =>
+            e.toString() == 'ReservationStatus.${map['status'] ?? 'pending'}',
+        orElse: () => ReservationStatus.pending,
+      ),
+      code: map['code'],
+    );
+  }
 }
 
 enum ReservationStatus {

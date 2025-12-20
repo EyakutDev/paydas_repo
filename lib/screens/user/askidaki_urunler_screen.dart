@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/restaurant.dart';
+import '../../services/firebase_service.dart';
 import '../../widgets/user/restaurant_card.dart';
 import 'restaurant_menu_screen.dart';
 
@@ -8,51 +10,39 @@ class AskidakiUrunlerScreen extends StatelessWidget {
 
   const AskidakiUrunlerScreen({super.key, required this.onReserve});
 
-  // Demo restoranlar
-  List<Restaurant> get _demoRestaurants => [
-    Restaurant.demo(
-      id: '1',
-      name: 'Atakan Döner',
-      distance: '800m uzakta',
-      askiItemCount: 5,
-    ),
-    Restaurant.demo(
-      id: '2',
-      name: 'Lezzet Durağı',
-      distance: '1.2km uzakta',
-      askiItemCount: 3,
-    ),
-    Restaurant.demo(
-      id: '3',
-      name: 'Anadolu Sofrası',
-      distance: '500m uzakta',
-      askiItemCount: 8,
-    ),
-    Restaurant.demo(
-      id: '4',
-      name: 'Pide House',
-      distance: '2km uzakta',
-      askiItemCount: 2,
-    ),
-    Restaurant.demo(
-      id: '5',
-      name: 'Köfteci Yusuf',
-      distance: '1.5km uzakta',
-      askiItemCount: 4,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _demoRestaurants.length,
-      itemBuilder: (context, index) {
-        final restaurant = _demoRestaurants[index];
-        return RestaurantCard(
-          restaurant: restaurant,
-          buttonText: 'Rezerve\nEt',
-          onButtonPressed: () => onReserve(restaurant),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.getBusinesses(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Bir hata oluştu'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(child: Text('Henüz kayıtlı işletme yok.'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final restaurant = Restaurant.fromMap(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+            return RestaurantCard(
+              restaurant: restaurant,
+              buttonText: 'Rezerve\nEt',
+              onButtonPressed: () => onReserve(restaurant),
+            );
+          },
         );
       },
     );
@@ -62,58 +52,47 @@ class AskidakiUrunlerScreen extends StatelessWidget {
 class AskiyaEkleScreen extends StatelessWidget {
   const AskiyaEkleScreen({super.key});
 
-  // Demo restoranlar
-  List<Restaurant> get _demoRestaurants => [
-    Restaurant.demo(
-      id: '1',
-      name: 'Atakan Döner',
-      distance: '800m uzakta',
-      askiItemCount: 0,
-    ),
-    Restaurant.demo(
-      id: '2',
-      name: 'Lezzet Durağı',
-      distance: '1.2km uzakta',
-      askiItemCount: 0,
-    ),
-    Restaurant.demo(
-      id: '3',
-      name: 'Anadolu Sofrası',
-      distance: '500m uzakta',
-      askiItemCount: 0,
-    ),
-    Restaurant.demo(
-      id: '4',
-      name: 'Pide House',
-      distance: '2km uzakta',
-      askiItemCount: 0,
-    ),
-    Restaurant.demo(
-      id: '5',
-      name: 'Köfteci Yusuf',
-      distance: '1.5km uzakta',
-      askiItemCount: 0,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _demoRestaurants.length,
-      itemBuilder: (context, index) {
-        final restaurant = _demoRestaurants[index];
-        return RestaurantCard(
-          restaurant: restaurant,
-          buttonText: 'Bağış\nYap',
-          showAskiCount: false,
-          onButtonPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    RestaurantMenuScreen(restaurant: restaurant),
-              ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.getBusinesses(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Bir hata oluştu'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(child: Text('Henüz kayıtlı işletme yok.'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final restaurant = Restaurant.fromMap(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+
+            return RestaurantCard(
+              restaurant: restaurant,
+              buttonText: 'Bağış\nYap',
+              showAskiCount: false,
+              onButtonPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        RestaurantMenuScreen(restaurant: restaurant),
+                  ),
+                );
+              },
             );
           },
         );

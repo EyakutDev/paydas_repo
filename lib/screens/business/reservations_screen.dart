@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/aski_item.dart';
+import '../../services/firebase_service.dart';
 
 class ReservationsScreen extends StatelessWidget {
   final List<ReservationItem> reservations;
@@ -263,10 +264,96 @@ class ReservationsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+
+              if (reservation.status == ReservationStatus.pending) ...[
+                const SizedBox(height: 12),
+                const Divider(),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        _showConfirmationDialog(context, reservation),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Kodu Onayla'),
+                  ),
+                ),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  void _showConfirmationDialog(
+    BuildContext context,
+    ReservationItem reservation,
+  ) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rezervasyon Onayı'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            const Text('Lütfen müşteriden aldığınız kodu girin:'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Onay Kodu',
+                counterText: '',
+              ),
+              textCapitalization: TextCapitalization.characters,
+              maxLength: 9, // XXXX-XXXX
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().toUpperCase() ==
+                  reservation.code?.toUpperCase()) {
+                // Kod doğru
+                Navigator.pop(context);
+                await FirebaseService.confirmReservation(reservation.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Rezervasyon onaylandı!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                // Kod yanlış
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Hatalı kod!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Onayla'),
+          ),
+        ],
+      ),
     );
   }
 

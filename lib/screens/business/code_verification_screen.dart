@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/firebase_service.dart';
 
 class CodeVerificationScreen extends StatefulWidget {
-  const CodeVerificationScreen({super.key});
+  final String businessId;
+
+  const CodeVerificationScreen({super.key, required this.businessId});
 
   @override
   State<CodeVerificationScreen> createState() => _CodeVerificationScreenState();
@@ -12,6 +15,8 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isVerifying = false;
   bool? _isValid;
+  String? _message;
+  Map<String, dynamic>? _reservationData;
 
   @override
   void dispose() {
@@ -19,7 +24,7 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
     super.dispose();
   }
 
-  void _verifyCode() async {
+  Future<void> _verifyCode() async {
     if (_codeController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -33,22 +38,42 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
     setState(() {
       _isVerifying = true;
       _isValid = null;
+      _message = null;
+      _reservationData = null;
     });
 
-    // Simüle doğrulama
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final data = await FirebaseService.verifyReservationCode(
+        widget.businessId,
+        _codeController.text,
+      );
 
-    setState(() {
-      _isVerifying = false;
-      // Demo: PDS ile başlayan kodlar geçerli
-      _isValid = _codeController.text.toUpperCase().startsWith('PDS');
-    });
+      setState(() {
+        _isVerifying = false;
+        if (data != null) {
+          _isValid = true;
+          _reservationData = data;
+          _message = 'Kod doğrulandı! Teslim edilebilir.';
+          _codeController.clear();
+        } else {
+          _isValid = false;
+          _message = 'Kod geçersiz veya bulunamadı.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isVerifying = false;
+        _isValid = false;
+        _message = 'Hata: ${e.toString().replaceAll("Exception: ", "")}';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
+      resizeToAvoidBottomInset: true,
       body: Column(
         children: [
           // AppBar
@@ -123,7 +148,7 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
                   const SizedBox(height: 8),
 
                   Text(
-                    'Kullanıcının QR kodunu okutun veya sayısal kodunu girin',
+                    'Kullanıcının ilettiği kodu girin',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -133,74 +158,18 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
 
                   const SizedBox(height: 32),
 
-                  // QR Tarama butonu
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // QR tarama işlemi (gelecekte eklenecek)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'QR tarama özelliği yakında eklenecek',
-                            ),
-                            backgroundColor: AppColors.primaryGreen,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('QR Kod Tara'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: AppColors.primaryGreen),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Veya ayracı
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Divider(
-                          color: AppColors.inputBorder.withOpacity(0.5),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'veya',
-                          style: TextStyle(
-                            color: AppColors.textSecondary.withOpacity(0.8),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(
-                          color: AppColors.inputBorder.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
                   // Kod girişi
                   TextField(
                     controller: _codeController,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 20,
-                      letterSpacing: 4,
+                      fontSize: 24,
+                      letterSpacing: 2,
                       fontWeight: FontWeight.bold,
                     ),
+                    textCapitalization: TextCapitalization.characters,
                     decoration: InputDecoration(
-                      hintText: 'Kodu girin',
+                      hintText: 'KODU GİRİN',
                       hintStyle: TextStyle(
                         color: AppColors.textSecondary.withOpacity(0.5),
                         letterSpacing: 0,
@@ -267,24 +236,41 @@ class _CodeVerificationScreenState extends State<CodeVerificationScreen> {
                             : Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
+                      child: Column(
                         children: [
-                          Icon(
-                            _isValid! ? Icons.check_circle : Icons.cancel,
-                            color: _isValid! ? Colors.green : Colors.red,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _isValid!
-                                  ? 'Kod geçerli! Ürünleri teslim edebilirsiniz.'
-                                  : 'Kod geçersiz veya süresi dolmuş.',
-                              style: TextStyle(
+                          Row(
+                            children: [
+                              Icon(
+                                _isValid! ? Icons.check_circle : Icons.cancel,
                                 color: _isValid! ? Colors.green : Colors.red,
-                                fontWeight: FontWeight.w500,
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _message ?? '',
+                                  style: TextStyle(
+                                    color: _isValid!
+                                        ? Colors.green
+                                        : Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          if (_isValid! && _reservationData != null) ...[
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Ürün:',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(_reservationData!['itemName'] ?? ''),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

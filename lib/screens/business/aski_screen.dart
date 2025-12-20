@@ -5,8 +5,13 @@ import 'code_verification_screen.dart';
 
 class AskiScreen extends StatelessWidget {
   final List<AskiItem> askiItems;
+  final String businessId;
 
-  const AskiScreen({super.key, required this.askiItems});
+  const AskiScreen({
+    super.key,
+    required this.askiItems,
+    required this.businessId,
+  });
 
   String _getStatusText(AskiStatus status) {
     switch (status) {
@@ -74,7 +79,8 @@ class AskiScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const CodeVerificationScreen(),
+                        builder: (context) =>
+                            CodeVerificationScreen(businessId: businessId),
                       ),
                     );
                   },

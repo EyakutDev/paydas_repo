@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/restaurant.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/firebase_service.dart';
 
 class RestaurantCard extends StatelessWidget {
   final Restaurant restaurant;
@@ -79,23 +81,35 @@ class RestaurantCard extends StatelessWidget {
                   ),
                   if (showAskiCount) ...[
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Askıda ${restaurant.askiItemCount} Ürün',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryGreen,
-                        ),
-                      ),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseService.getAskiItems(restaurant.id),
+                      builder: (context, snapshot) {
+                        int totalCount = 0;
+                        if (snapshot.hasData) {
+                          for (var doc in snapshot.data!.docs) {
+                            totalCount += (doc['quantity'] as int? ?? 0);
+                          }
+                        }
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Askıda $totalCount Ürün',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryGreen,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ],

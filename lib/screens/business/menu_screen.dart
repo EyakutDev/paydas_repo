@@ -4,9 +4,12 @@ import '../../models/menu_item.dart';
 import '../../widgets/business/category_section.dart';
 import 'menu_edit_screen.dart';
 import 'business_profile_screen.dart';
+import '../../services/firebase_service.dart';
+import '../register_screen.dart';
 
 class MenuScreen extends StatelessWidget {
   final String businessName;
+  final String businessId;
   final List<MenuCategory> categories;
   final Function(List<MenuCategory>) onMenuUpdated;
   final Function(MenuItem, int) onItemSentToAski;
@@ -14,6 +17,7 @@ class MenuScreen extends StatelessWidget {
   const MenuScreen({
     super.key,
     required this.businessName,
+    required this.businessId,
     required this.categories,
     required this.onMenuUpdated,
     required this.onItemSentToAski,
@@ -127,8 +131,18 @@ class MenuScreen extends StatelessWidget {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back, color: AppColors.white),
+                  onTap: () async {
+                    await FirebaseService.signOut();
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  child: const Icon(Icons.logout, color: AppColors.white),
                 ),
                 const SizedBox(width: 16),
                 const Expanded(
@@ -163,8 +177,10 @@ class MenuScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            BusinessProfileScreen(businessName: businessName),
+                        builder: (context) => BusinessProfileScreen(
+                          businessName: businessName,
+                          businessId: businessId,
+                        ),
                       ),
                     );
                   },

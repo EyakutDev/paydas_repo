@@ -1,72 +1,91 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/app_colors.dart';
 import '../../models/restaurant.dart';
-import '../../models/menu_item.dart';
+import '../../models/aski_item.dart';
+import '../../services/firebase_service.dart';
 import '../../widgets/user/qr_code_widget.dart';
 
 class ReservationScreen extends StatefulWidget {
   final Restaurant restaurant;
-  final List<MenuItem> askiItems;
 
-  const ReservationScreen({
-    super.key,
-    required this.restaurant,
-    required this.askiItems,
-  });
+  const ReservationScreen({super.key, required this.restaurant});
 
   @override
   State<ReservationScreen> createState() => _ReservationScreenState();
 }
 
 class _ReservationScreenState extends State<ReservationScreen> {
-  final Map<String, int> _selectedQuantities =
-      {}; // item id -> selected quantity
+  AskiItem? _selectedItem;
   bool _isReserved = false;
+  bool _isReserving = false;
   bool _showQR = true; // QR veya sayısal kod
-  late String _reservationCode;
-  List<MapEntry<MenuItem, int>> _reservedItems = [];
+  String? _reservationCode;
+  String? _reservedItemName;
 
-  @override
-  void initState() {
-    super.initState();
-    _reservationCode = _generateCode();
-  }
-
-  String _generateCode() {
-    final now = DateTime.now();
-    return 'PDS${now.millisecondsSinceEpoch.toString().substring(6)}';
-  }
-
-  void _confirmReservation() {
-    if (_selectedQuantities.isEmpty ||
-        _selectedQuantities.values.every((q) => q == 0)) {
+  Future<void> _confirmReservation() async {
+    if (_selectedItem == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Lütfen en az bir ürün seçin'),
+          content: Text('Lütfen bir ürün seçin'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // Seçilen ürünleri kaydet
-    _reservedItems = widget.askiItems
-        .where((item) => (_selectedQuantities[item.id] ?? 0) > 0)
-        .map((item) => MapEntry(item, _selectedQuantities[item.id]!))
-        .toList();
+    String? userId = FirebaseAuth.instance.currentUser?.uid;
+    userId ??= FirebaseService.currentUserId;
 
-    setState(() {
-      _isReserved = true;
-    });
-  }
+    // Auth null ise, yerel hafızadan kullanıcıyı kontrol et
+    if (userId == null) {
+      final session = await FirebaseService.getRememberedUser();
+      if (session != null && session['userType'] == 'user') {
+        userId = session['userId'];
+      }
+    }
 
-  int get _totalSelectedItems {
-    return _selectedQuantities.values.fold(0, (sum, q) => sum + q);
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rezervasyon için giriş yapmalısınız'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isReserving = true);
+
+    try {
+      final code = await FirebaseService.createReservation(
+        visitorId: userId!,
+        businessId: widget.restaurant.id,
+        businessName: widget.restaurant.name,
+        item: _selectedItem!.menuItem,
+      );
+
+      setState(() {
+        _isReserved = true;
+        _isReserving = false;
+        _reservationCode = code;
+        _reservedItemName = _selectedItem!.menuItem.name;
+      });
+    } catch (e) {
+      setState(() => _isReserving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hata: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isReserved) {
+    if (_isReserved && _reservationCode != null) {
       return _buildReservationSuccessScreen();
     }
 
@@ -129,7 +148,7 @@ class _ReservationScreenState extends State<ReservationScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Rezerve Edilecek Ürünler',
+                  'Rezerve Edilecek Ürün',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -138,7 +157,7 @@ class _ReservationScreenState extends State<ReservationScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Almak istediğiniz ürünleri seçin',
+                  'Almak istediğiniz ürünü seçin (Sadece 1 adet)',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary.withOpacity(0.8),
@@ -150,152 +169,106 @@ class _ReservationScreenState extends State<ReservationScreen> {
 
           // Ürün listesi
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: widget.askiItems.length,
-              itemBuilder: (context, index) {
-                final item = widget.askiItems[index];
-                final selectedQty = _selectedQuantities[item.id] ?? 0;
-                final availableQty = item.quantity;
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService.getAskiItems(widget.restaurant.id),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(child: Text('Bir hata oluştu'));
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: selectedQty > 0
-                        ? AppColors.primaryGreen.withOpacity(0.1)
-                        : AppColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: selectedQty > 0
-                          ? AppColors.primaryGreen
-                          : AppColors.inputBorder.withOpacity(0.3),
-                      width: selectedQty > 0 ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Ürün bilgisi
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                final docs = snapshot.data?.docs ?? [];
+                // Sadece stoğu olan ve rezerve edilmemiş ürünleri gösterelim (FirebaseService filtresi yoksa burada yap)
+                // Ama service addToAski subcollection kullanıyor. Subcollection askiItems.
+                // quantity > 0 olanları göster.
+                final askiItems = docs
+                    .map(
+                      (doc) => AskiItem.fromMap(
+                        doc.data() as Map<String, dynamic>,
+                        doc.id,
+                      ),
+                    )
+                    .where((item) => item.quantity > 0)
+                    .toList();
+
+                if (askiItems.isEmpty) {
+                  return const Center(child: Text('Şu an askıda ürün yok.'));
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: askiItems.length,
+                  itemBuilder: (context, index) {
+                    final item = askiItems[index];
+                    final isSelected = _selectedItem?.id == item.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedItem = item;
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primaryGreen.withOpacity(0.1)
+                              : AppColors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primaryGreen
+                                : AppColors.inputBorder.withOpacity(0.3),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              item.name,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
-                              ),
+                            Radio<String>(
+                              value: item.id,
+                              groupValue: _selectedItem?.id,
+                              onChanged: (val) {
+                                setState(() {
+                                  _selectedItem = item;
+                                });
+                              },
+                              activeColor: AppColors.primaryGreen,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Askıda $availableQty adet mevcut',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary.withOpacity(0.8),
+                            // Ürün bilgisi
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.menuItem.name,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Askıda ${item.quantity} adet mevcut',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary
+                                          .withOpacity(0.8),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-
-                      // Miktar seçici
-                      Row(
-                        children: [
-                          if (selectedQty > 0)
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedQuantities[item.id] =
-                                      selectedQty - 1;
-                                });
-                              },
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryGreen.withOpacity(
-                                    0.1,
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.remove,
-                                  size: 18,
-                                  color: AppColors.primaryGreen,
-                                ),
-                              ),
-                            ),
-                          if (selectedQty > 0)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Text(
-                                '$selectedQty',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          GestureDetector(
-                            onTap: selectedQty < availableQty
-                                ? () {
-                                    setState(() {
-                                      _selectedQuantities[item.id] =
-                                          selectedQty + 1;
-                                    });
-                                  }
-                                : null,
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: selectedQty < availableQty
-                                    ? AppColors.primaryGreen
-                                    : AppColors.textSecondary.withOpacity(0.3),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.add,
-                                size: 18,
-                                color: selectedQty < availableQty
-                                    ? AppColors.white
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               },
-            ),
-          ),
-
-          // Öğün hakkı bilgisi
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Günlük 2 öğün hakkınız var (6 saat arayla)',
-                    style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
-                  ),
-                ),
-              ],
             ),
           ),
 
@@ -317,26 +290,48 @@ class _ReservationScreenState extends State<ReservationScreen> {
                 ),
               ],
             ),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _confirmReservation,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  foregroundColor: AppColors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isReserving ? null : _confirmReservation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isReserving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Rezerve Et (1 Ürün)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
-                child: Text(
-                  'Rezerve Et ($_totalSelectedItems ürün)',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Vazgeç',
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -383,7 +378,7 @@ class _ReservationScreenState extends State<ReservationScreen> {
               const SizedBox(height: 8),
 
               Text(
-                '${widget.restaurant.name}\'dan $_totalSelectedItems ürün rezerve edildi',
+                '${widget.restaurant.name}\'dan 1 adet $_reservedItemName rezerve edildi',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
@@ -461,7 +456,7 @@ class _ReservationScreenState extends State<ReservationScreen> {
               // QR veya Sayısal Kod
               if (_showQR)
                 QRCodeWidget(
-                  data: _reservationCode,
+                  data: _reservationCode!,
                   expiresInSeconds: 1800, // 30 dakika
                   onExpired: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -508,7 +503,8 @@ class _ReservationScreenState extends State<ReservationScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    //Navigator.pop(context); // Bu stack'ten çıkarır ama ana sayfaya dönmek için popUntil veya pushReplacement
+                    Navigator.of(context).popUntil((route) => route.isFirst);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryGreen,
@@ -555,38 +551,12 @@ class _ReservationScreenState extends State<ReservationScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                _reservationCode,
+                _reservationCode!,
                 style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryGreen,
                   letterSpacing: 4,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        GestureDetector(
-          onTap: () {
-            // Kopyalama işlemi
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Kod kopyalandı'),
-                backgroundColor: AppColors.primaryGreen,
-              ),
-            );
-          },
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.copy, size: 18, color: AppColors.primaryGreen),
-              SizedBox(width: 8),
-              Text(
-                'Kodu Kopyala',
-                style: TextStyle(
-                  color: AppColors.primaryGreen,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

@@ -31,42 +31,37 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: Column(
-        children: [
-          // Yeşil Header
-          Container(
-            height: 200,
-            width: double.infinity,
+      appBar: AppBar(
+        toolbarHeight: 150, // Daha küçük bar
+        backgroundColor: AppColors.primaryGreen,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(
+          color: AppColors.white,
+        ), // Geri butonu beyaz olsun
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+        ),
+        title: Container(
+          height: 110,
+          width: 110,
+          padding: const EdgeInsets.all(12),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            shape: BoxShape.circle,
+          ),
+          child: Container(
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 200,
-                    height: 200,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.restaurant,
-                        size: 100,
-                        color: AppColors.white,
-                      );
-                    },
-                  ),
-                ),
+              image: DecorationImage(
+                image: AssetImage('assets/images/logo.png'),
+                fit: BoxFit.contain,
               ),
             ),
           ),
-
+        ),
+      ),
+      body: Column(
+        children: [
           const SizedBox(height: 24),
 
           // Tab Bar
