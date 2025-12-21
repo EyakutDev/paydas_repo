@@ -68,6 +68,11 @@ Proje **Flutter** framework'ü kullanılarak geliştirilmiştir ve backend taraf
 *   `geolocator`: Konum servisi.
 *   `geocoding`: Adres işlemleri.
 
+### Renk
+*   **Arka Plan:** #F8F9FA
+*   **Metinler:** #37474f
+*   **Appbar:** #2E7D32
+
 ## 🚀 Kurulum
 
 Projeyi yerel ortamınızda çalıştırmak için:
