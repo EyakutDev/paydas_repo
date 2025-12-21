@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../screens/business/business_home_screen.dart';
-import '../utils/phone_validator.dart';
 import '../services/firebase_service.dart';
 import 'custom_text_field.dart';
 
@@ -13,48 +13,69 @@ class BusinessLoginForm extends StatefulWidget {
 }
 
 class _BusinessLoginFormState extends State<BusinessLoginForm> {
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
-    if (_phoneController.text.isEmpty) {
-      _showError('Telefon numarası gerekli');
+    if (_emailController.text.isEmpty) {
+      _showError('E-posta adresi gerekli');
       return;
     }
 
-    if (!PhoneValidator.isValid(_phoneController.text)) {
-      _showError('Geçerli bir telefon numarası girin (05XX XXX XX XX)');
+    if (_passwordController.text.isEmpty) {
+      _showError('Şifre gerekli');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final phone = PhoneValidator.formatToE164(_phoneController.text);
-      final business = await FirebaseService.getBusinessByPhone(phone);
+      // 1. Auth Girişi
+      final userCredential = await FirebaseService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-      if (business == null) {
-        _showError('Bu telefon numarasıyla kayıtlı işletme bulunamadı');
+      // 2. Firestore'dan işletme verisini çek
+      // 2. Firestore'dan işletme verisini çek
+      final businessDoc = await FirebaseService.businesses
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (!businessDoc.exists) {
+        _showError('İşletme profili bulunamadı.');
+        await FirebaseService.signOut();
         setState(() => _isLoading = false);
         return;
       }
 
+      final businessData = businessDoc.data() as Map<String, dynamic>;
+
+      // Role kontrolü (registerBusiness'ta role: business eklemiştik)
+      if (businessData['role'] != 'business') {
+        _showError('Bu hesap bir işletme hesabı değil.');
+        await FirebaseService.signOut();
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final businessName = businessData['name'] ?? 'İşletme';
+
       if (_rememberMe) {
         await FirebaseService.saveRememberMe(
           userType: 'business',
-          userId: business.id,
+          userId: userCredential.user!.uid,
         );
       }
-
-      final data = business.data() as Map<String, dynamic>;
-      final businessName = data['name'] ?? 'İşletme';
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -62,7 +83,7 @@ class _BusinessLoginFormState extends State<BusinessLoginForm> {
           MaterialPageRoute(
             builder: (context) => BusinessHomeScreen(
               businessName: businessName,
-              businessId: business.id,
+              businessId: userCredential.user!.uid,
             ),
           ),
           (route) => false,
@@ -70,12 +91,73 @@ class _BusinessLoginFormState extends State<BusinessLoginForm> {
       }
     } catch (e) {
       debugPrint('Firebase error: $e');
-      _showError(
-        'Hata: ${e.toString().substring(0, e.toString().length > 100 ? 100 : e.toString().length)}',
-      );
+      if (e is FirebaseAuthException && e.code == 'email-not-verified') {
+        _showVerificationError();
+      } else {
+        _showError('Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showVerificationError() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('E-posta Doğrulanmadı'),
+        content: const Text(
+          'Giriş yapabilmek için e-posta adresinizi doğrulamanız gerekmektedir. Lütfen gelen kutunuzu kontrol edin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              if (_emailController.text.isEmpty ||
+                  _passwordController.text.isEmpty) {
+                return;
+              }
+
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Doğrulama maili gönderiliyor...'),
+                  ),
+                );
+
+                await FirebaseService.resendVerificationEmail(
+                  _emailController.text.trim(),
+                  _passwordController.text,
+                );
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Doğrulama maili tekrar gönderildi! Spam klasörünü kontrol etmeyi unutmayın.',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                debugPrint('Resend error: $e');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Mail gönderilemedi: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Tekrar Gönder'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String message) {
@@ -91,10 +173,18 @@ class _BusinessLoginFormState extends State<BusinessLoginForm> {
       child: Column(
         children: [
           CustomTextField(
-            controller: _phoneController,
-            hintText: 'Telefon Numarası (05XX XXX XX XX)',
-            keyboardType: TextInputType.phone,
-            prefixIcon: const Icon(Icons.phone, color: AppColors.textSecondary),
+            controller: _emailController,
+            hintText: 'E-posta Adresi',
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+          ),
+
+          CustomTextField(
+            controller: _passwordController,
+            hintText: 'Şifre',
+            keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
+            prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: 16),

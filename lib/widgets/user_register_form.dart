@@ -3,8 +3,9 @@ import '../constants/app_colors.dart';
 import '../constants/legal_texts.dart';
 import '../utils/phone_validator.dart';
 import '../services/firebase_service.dart';
-import '../screens/user/user_home_screen.dart';
+import '../screens/email_verification_screen.dart';
 import 'custom_text_field.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserRegisterForm extends StatefulWidget {
   const UserRegisterForm({super.key});
@@ -14,6 +15,8 @@ class UserRegisterForm extends StatefulWidget {
 }
 
 class _UserRegisterFormState extends State<UserRegisterForm> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
@@ -23,6 +26,8 @@ class _UserRegisterFormState extends State<UserRegisterForm> {
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _cityController.dispose();
@@ -53,6 +58,16 @@ class _UserRegisterFormState extends State<UserRegisterForm> {
 
   Future<void> _register() async {
     // Validasyon
+    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
+      _showError('Geçerli bir e-posta adresi girin');
+      return;
+    }
+
+    if (_passwordController.text.length < 6) {
+      _showError('Şifre en az 6 karakter olmalıdır');
+      return;
+    }
+
     if (_phoneController.text.isEmpty) {
       _showError('Telefon numarası gerekli');
       return;
@@ -71,19 +86,11 @@ class _UserRegisterFormState extends State<UserRegisterForm> {
     setState(() => _isLoading = true);
 
     try {
-      final phone = PhoneValidator.formatToE164(_phoneController.text);
-
-      // Kullanıcı var mı kontrol et
-      final existingUser = await FirebaseService.getUserByPhone(phone);
-      if (existingUser != null) {
-        _showError('Bu telefon numarası zaten kayıtlı');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Yeni kullanıcı oluştur
-      final userId = await FirebaseService.createUser(
-        phone: phone,
+      // Auth + Firestore Kaydı
+      final userId = await FirebaseService.registerUser(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        phone: PhoneValidator.formatToE164(_phoneController.text),
         address: _addressController.text,
         city: _cityController.text,
         district: _districtController.text,
@@ -96,23 +103,38 @@ class _UserRegisterFormState extends State<UserRegisterForm> {
       await FirebaseService.saveRememberMe(userType: 'user', userId: userId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kayıt başarılı!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pushAndRemoveUntil(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-          (route) => false,
+          MaterialPageRoute(
+            builder: (context) => EmailVerificationScreen(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+              userType: 'user',
+            ),
+          ),
         );
       }
     } catch (e) {
-      debugPrint('Firebase error: $e');
-      _showError(
-        'Hata: ${e.toString().substring(0, e.toString().length > 100 ? 100 : e.toString().length)}',
-      );
+      debugPrint('Registration error: $e');
+
+      String errorMessage = 'Kayıt işlemi başarısız.';
+
+      if (e is FirebaseAuthException) {
+        if (e.code == 'email-already-in-use') {
+          errorMessage = 'Bu e-posta adresi zaten kullanımda.';
+        } else if (e.code == 'weak-password') {
+          errorMessage = 'Şifre çok zayıf.';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Geçersiz e-posta adresi.';
+        } else {
+          errorMessage = 'Hata: ${e.message}';
+        }
+      } else {
+        // Custom exceptionlardan gelen mesajı göster (Telefon kullanımda vs.)
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
+      _showError(errorMessage);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -130,6 +152,23 @@ class _UserRegisterFormState extends State<UserRegisterForm> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          // E-posta
+          CustomTextField(
+            controller: _emailController,
+            hintText: 'E-posta Adresi',
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+          ),
+
+          // Şifre
+          CustomTextField(
+            controller: _passwordController,
+            hintText: 'Şifre (Min 6 karakter)',
+            keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
+            prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
+          ),
+
           // Telefon Numarası
           CustomTextField(
             controller: _phoneController,

@@ -3,8 +3,9 @@ import '../constants/app_colors.dart';
 import '../constants/legal_texts.dart';
 import '../utils/phone_validator.dart';
 import '../services/firebase_service.dart';
-import '../screens/business/business_home_screen.dart';
+import '../screens/email_verification_screen.dart';
 import 'custom_text_field.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BusinessRegisterForm extends StatefulWidget {
   const BusinessRegisterForm({super.key});
@@ -14,6 +15,8 @@ class BusinessRegisterForm extends StatefulWidget {
 }
 
 class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _businessNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
@@ -24,6 +27,8 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
     _businessNameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -59,6 +64,16 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
       return;
     }
 
+    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
+      _showError('Geçerli bir e-posta adresi girin');
+      return;
+    }
+
+    if (_passwordController.text.length < 6) {
+      _showError('Şifre en az 6 karakter olmalıdır');
+      return;
+    }
+
     if (_phoneController.text.isEmpty) {
       _showError('Telefon numarası gerekli');
       return;
@@ -78,7 +93,9 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
 
     try {
       final phone = PhoneValidator.formatToE164(_phoneController.text);
+      final email = _emailController.text.trim();
 
+      // İşletme var mı kontrol et (opsiyonel, auth zaten check eder ama telefon için iyi olabilir)
       final existingBusiness = await FirebaseService.getBusinessByPhone(phone);
       if (existingBusiness != null) {
         _showError('Bu telefon numarası zaten kayıtlı');
@@ -86,7 +103,9 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
         return;
       }
 
-      final businessId = await FirebaseService.createBusiness(
+      final businessId = await FirebaseService.registerBusiness(
+        email: email,
+        password: _passwordController.text,
         name: _businessNameController.text,
         phone: phone,
         address: _addressController.text,
@@ -103,18 +122,35 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => BusinessHomeScreen(
-              businessName: _businessNameController.text,
-              businessId: businessId,
+            builder: (context) => EmailVerificationScreen(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+              userType: 'business',
             ),
           ),
         );
       }
     } catch (e) {
-      debugPrint('Firebase error: $e');
-      _showError(
-        'Hata: ${e.toString().substring(0, e.toString().length > 100 ? 100 : e.toString().length)}',
-      );
+      debugPrint('Registration error: $e');
+
+      String errorMessage = 'Kayıt işlemi başarısız.';
+
+      if (e is FirebaseAuthException) {
+        if (e.code == 'email-already-in-use') {
+          errorMessage = 'Bu e-posta adresi zaten kullanımda.';
+        } else if (e.code == 'weak-password') {
+          errorMessage = 'Şifre çok zayıf.';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Geçersiz e-posta adresi.';
+        } else {
+          errorMessage = 'Hata: ${e.message}';
+        }
+      } else {
+        // Custom exceptionlardan gelen mesajı göster
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
+      _showError(errorMessage);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -137,6 +173,21 @@ class _BusinessRegisterFormState extends State<BusinessRegisterForm> {
             hintText: 'İşletme Adı',
             keyboardType: TextInputType.name,
             prefixIcon: const Icon(Icons.store, color: AppColors.textSecondary),
+          ),
+
+          CustomTextField(
+            controller: _emailController,
+            hintText: 'E-posta Adresi',
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+          ),
+
+          CustomTextField(
+            controller: _passwordController,
+            hintText: 'Şifre',
+            keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
+            prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
           ),
 
           CustomTextField(

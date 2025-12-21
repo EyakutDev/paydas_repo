@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../screens/user/user_home_screen.dart';
-import '../utils/phone_validator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase_service.dart';
 import 'custom_text_field.dart';
 
@@ -13,43 +13,64 @@ class UserLoginForm extends StatefulWidget {
 }
 
 class _UserLoginFormState extends State<UserLoginForm> {
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
-    if (_phoneController.text.isEmpty) {
-      _showError('Telefon numarası gerekli');
+    if (_emailController.text.isEmpty) {
+      _showError('E-posta adresi gerekli');
       return;
     }
 
-    if (!PhoneValidator.isValid(_phoneController.text)) {
-      _showError('Geçerli bir telefon numarası girin (05XX XXX XX XX)');
+    if (_passwordController.text.isEmpty) {
+      _showError('Şifre gerekli');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final phone = PhoneValidator.formatToE164(_phoneController.text);
-      final user = await FirebaseService.getUserByPhone(phone);
+      // 1. Auth Girişi
+      final userCredential = await FirebaseService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-      if (user == null) {
-        _showError('Bu telefon numarasıyla kayıtlı kullanıcı bulunamadı');
+      // 2. Firestore'dan kullanıcı verisini çek ve doğrula
+      final userDoc = await FirebaseService.getUser(userCredential.user!.uid);
+
+      if (!userDoc!.exists) {
+        _showError('Kullanıcı profili bulunamadı.');
+        await FirebaseService.signOut();
         setState(() => _isLoading = false);
         return;
       }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      if (userData['role'] != 'user') {
+        _showError('Bu hesap bir kullanıcı hesabı değil.');
+        await FirebaseService.signOut();
+        setState(() => _isLoading = false);
+        return;
+      }
+
       // Oturum ID'sini kaydet
-      FirebaseService.currentUserId = user.id;
+      FirebaseService.currentUserId = userCredential.user!.uid;
 
       if (_rememberMe) {
-        await FirebaseService.saveRememberMe(userType: 'user', userId: user.id);
+        await FirebaseService.saveRememberMe(
+          userType: 'user',
+          userId: userCredential.user!.uid,
+        );
       }
 
       if (mounted) {
@@ -61,12 +82,75 @@ class _UserLoginFormState extends State<UserLoginForm> {
       }
     } catch (e) {
       debugPrint('Firebase error: $e');
-      _showError(
-        'Hata: ${e.toString().substring(0, e.toString().length > 100 ? 100 : e.toString().length)}',
-      );
+      if (e is FirebaseAuthException && e.code == 'email-not-verified') {
+        _showVerificationError();
+      } else {
+        _showError('Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showVerificationError() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('E-posta Doğrulanmadı'),
+        content: const Text(
+          'Giriş yapabilmek için e-posta adresinizi doğrulamanız gerekmektedir. Lütfen gelen kutunuzu kontrol edin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              if (_emailController.text.isEmpty ||
+                  _passwordController.text.isEmpty) {
+                // Şifre veya mail yoksa işlem yapamayız (zaten login denemiş olması lazım buraya gelmek için)
+                return;
+              }
+
+              try {
+                // Yükleniyor göster
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Doğrulama maili gönderiliyor...'),
+                  ),
+                );
+
+                await FirebaseService.resendVerificationEmail(
+                  _emailController.text.trim(),
+                  _passwordController.text,
+                );
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Doğrulama maili tekrar gönderildi! Spam klasörünü kontrol etmeyi unutmayın.',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                debugPrint('Resend error: $e');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Mail gönderilemedi: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Tekrar Gönder'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String message) {
@@ -82,10 +166,18 @@ class _UserLoginFormState extends State<UserLoginForm> {
       child: Column(
         children: [
           CustomTextField(
-            controller: _phoneController,
-            hintText: 'Telefon Numarası (05XX XXX XX XX)',
-            keyboardType: TextInputType.phone,
-            prefixIcon: const Icon(Icons.phone, color: AppColors.textSecondary),
+            controller: _emailController,
+            hintText: 'E-posta Adresi',
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+          ),
+
+          CustomTextField(
+            controller: _passwordController,
+            hintText: 'Şifre',
+            keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
+            prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: 16),

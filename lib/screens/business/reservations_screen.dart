@@ -143,9 +143,12 @@ class ReservationsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Colors.black.withOpacity(
+                  0.1,
+                ), // Increased opacity for better visibility
+                blurRadius:
+                    12, // Increased blur for softer but more visible shadow
+                offset: const Offset(0, 4), // Increased offset for depth
               ),
             ],
           ),
@@ -157,7 +160,7 @@ class ReservationsScreen extends StatelessWidget {
                   // Kullanıcı avatarı
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                    backgroundColor: AppColors.primaryGreen.withOpacity(0.15),
                     child: Text(
                       reservation.userName.isNotEmpty
                           ? reservation.userName[0].toUpperCase()

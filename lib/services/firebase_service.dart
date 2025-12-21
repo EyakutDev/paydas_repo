@@ -21,41 +21,37 @@ class FirebaseService {
 
   // ==================== AUTH ====================
 
-  /// Telefon ile OTP gönder
-  static Future<void> sendOTP({
-    required String phoneNumber,
-    required Function(String verificationId) onCodeSent,
-    required Function(String error) onError,
+  /// E-posta ile giriş yap
+  static Future<UserCredential> signIn({
+    required String email,
+    required String password,
   }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        await _auth.signInWithCredential(credential);
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        onError(e.message ?? 'Doğrulama hatası');
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        onCodeSent(verificationId);
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {},
+    // Dil ayarını Türkçe yap
+    await _auth.setLanguageCode('tr');
+
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
     );
   }
 
-  /// OTP ile giriş yap
-  static Future<UserCredential?> verifyOTP({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    try {
-      PhoneAuthCredential credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      return null;
+  /// Doğrulama mailini tekrar gönder
+  static Future<void> resendVerificationEmail(
+    String email,
+    String password,
+  ) async {
+    await _auth.setLanguageCode('tr');
+
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    if (!credential.user!.emailVerified) {
+      await credential.user!.sendEmailVerification();
     }
+
+    await _auth.signOut();
   }
 
   /// Çıkış yap
@@ -89,36 +85,114 @@ class FirebaseService {
     final userType = prefs.getString('userType');
     final userId = prefs.getString('userId');
     if (userType != null && userId != null) {
-      return {'userType': userType, 'userId': userId};
+      if (_auth.currentUser != null) {
+        return {'userType': userType, 'userId': userId};
+      }
     }
     return null;
   }
 
   // ==================== USER ====================
 
-  /// Kullanıcı kaydet
-  static Future<String> createUser({
+  /// Kullanıcı kaydet (Auth + Firestore)
+  static Future<String> registerUser({
+    required String email,
+    required String password,
     required String phone,
     required String address,
     required String city,
     required String district,
   }) async {
-    final doc = await users.add({
+    // 0. Telefon & Email Uniqueness Kontrolü
+    // Kullanıcılarda ara
+    final existingUser = await getUserByPhone(phone);
+    if (existingUser != null) {
+      throw Exception(
+        'Bu telefon numarası başka bir kullanıcı tarafından kullanılıyor.',
+      );
+    }
+
+    // İşletmelerde ara
+    final existingBusiness = await getBusinessByPhone(phone);
+    if (existingBusiness != null) {
+      throw Exception(
+        'Bu telefon numarası bir işletme hesabı tarafından kullanılıyor.',
+      );
+    }
+
+    await _auth.setLanguageCode('tr');
+
+    // 1. Auth kaydı
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = userCredential.user!;
+    final uid = user.uid;
+
+    // 2. Doğrulama maili gönder
+    await user.sendEmailVerification();
+
+    // 3. Firestore kaydı
+    await users.doc(uid).set({
+      'email': email,
       'phone': phone,
       'address': address,
       'city': city,
       'district': district,
       'createdAt': FieldValue.serverTimestamp(),
+      'role': 'user',
     });
-    return doc.id;
+
+    // Doğrulanmadığı için oturumu kapat
+    await _auth.signOut();
+
+    return uid;
   }
 
-  /// Kullanıcı bul (telefon ile)
+  /// Kullanıcı bul (telefon ile - opsiyonel kontrol için)
+  /// Hem +90'lı (E164) hem de 0 ile başlayan (Display) formatları kontrol eder
   static Future<DocumentSnapshot?> getUserByPhone(String phone) async {
-    final query = await users.where('phone', isEqualTo: phone).limit(1).get();
-    if (query.docs.isNotEmpty) {
-      return query.docs.first;
+    // 1. Gelen numarayı temizle (sadece rakamlar)
+    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    String rawNumber = cleaned;
+
+    // Eğer 90 ile başlıyorsa (ülke kodu), onu at ve 10 haneli hale getir
+    if (cleaned.startsWith('90') && cleaned.length > 10) {
+      rawNumber = cleaned.substring(2);
+    } else if (cleaned.startsWith('0') && cleaned.length > 10) {
+      // 0 ile başlıyorsa at
+      rawNumber = cleaned.substring(1);
     }
+
+    // Elimizde "5XXXXXXXXX" gibi 10 haneli ham numara var.
+    // Veritabanında şu formatlar olabilir:
+    // 1. +905XXXXXXXXX (PhoneValidator.formatToE164)
+    // 2. 05XXXXXXXXX
+    // 3. 5XXXXXXXXX
+
+    final candidate1 = '+90$rawNumber';
+    final candidate2 = '0$rawNumber';
+    final candidate3 = rawNumber;
+
+    final query1 = await users
+        .where('phone', isEqualTo: candidate1)
+        .limit(1)
+        .get();
+    if (query1.docs.isNotEmpty) return query1.docs.first;
+
+    final query2 = await users
+        .where('phone', isEqualTo: candidate2)
+        .limit(1)
+        .get();
+    if (query2.docs.isNotEmpty) return query2.docs.first;
+
+    final query3 = await users
+        .where('phone', isEqualTo: candidate3)
+        .limit(1)
+        .get();
+    if (query3.docs.isNotEmpty) return query3.docs.first;
+
     return null;
   }
 
@@ -129,34 +203,98 @@ class FirebaseService {
 
   // ==================== BUSINESS ====================
 
-  /// İşletme kaydet
-  static Future<String> createBusiness({
+  /// İşletme kaydet (Auth + Firestore)
+  static Future<String> registerBusiness({
+    required String email,
+    required String password,
     required String name,
     required String phone,
     required String address,
     required String city,
     required String district,
   }) async {
-    final doc = await businesses.add({
+    // 0. Telefon Uniqueness Kontrolü
+    final existingUser = await getUserByPhone(phone);
+    if (existingUser != null) {
+      throw Exception(
+        'Bu telefon numarası bir kullanıcı hesabı tarafından kullanılıyor.',
+      );
+    }
+
+    final existingBusiness = await getBusinessByPhone(phone);
+    if (existingBusiness != null) {
+      throw Exception(
+        'Bu telefon numarası başka bir işletme tarafından kullanılıyor.',
+      );
+    }
+
+    await _auth.setLanguageCode('tr');
+
+    // 1. Auth kaydı
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = userCredential.user!;
+    final uid = user.uid;
+
+    // 2. Doğrulama maili gönder
+    await user.sendEmailVerification();
+
+    // 3. Firestore kaydı
+    await businesses.doc(uid).set({
       'name': name,
+      'email': email,
       'phone': phone,
       'address': address,
       'city': city,
       'district': district,
       'createdAt': FieldValue.serverTimestamp(),
+      'role': 'business',
     });
-    return doc.id;
+
+    // Doğrulanmadığı için oturumu kapat
+    await _auth.signOut();
+
+    return uid;
   }
 
-  /// İşletme bul (telefon ile)
+  /// İşletme bul (telefon ile - opsiyonel)
   static Future<DocumentSnapshot?> getBusinessByPhone(String phone) async {
-    final query = await businesses
-        .where('phone', isEqualTo: phone)
+    // 1. Gelen numarayı temizle (sadece rakamlar)
+    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    String rawNumber = cleaned;
+
+    // Eğer 90 ile başlıyorsa (ülke kodu), onu at ve 10 haneli hale getir
+    if (cleaned.startsWith('90') && cleaned.length > 10) {
+      rawNumber = cleaned.substring(2);
+    } else if (cleaned.startsWith('0') && cleaned.length > 10) {
+      // 0 ile başlıyorsa at
+      rawNumber = cleaned.substring(1);
+    }
+
+    final candidate1 = '+90$rawNumber';
+    final candidate2 = '0$rawNumber';
+    final candidate3 = rawNumber;
+
+    final query1 = await businesses
+        .where('phone', isEqualTo: candidate1)
         .limit(1)
         .get();
-    if (query.docs.isNotEmpty) {
-      return query.docs.first;
-    }
+    if (query1.docs.isNotEmpty) return query1.docs.first;
+
+    final query2 = await businesses
+        .where('phone', isEqualTo: candidate2)
+        .limit(1)
+        .get();
+    if (query2.docs.isNotEmpty) return query2.docs.first;
+
+    final query3 = await businesses
+        .where('phone', isEqualTo: candidate3)
+        .limit(1)
+        .get();
+    if (query3.docs.isNotEmpty) return query3.docs.first;
+
     return null;
   }
 

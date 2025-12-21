@@ -16,6 +16,13 @@ class RestaurantMenuScreen extends StatefulWidget {
 
 class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
   final Map<String, int> _selectedItems = {};
+  Stream<List<MenuCategory>>? _menuStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _menuStream = FirebaseService.getMenu(widget.restaurant.id);
+  }
 
   // Helper to find item by ID from the loaded categories
   MenuItem? _findItemInCategories(String id, List<MenuCategory> categories) {
@@ -55,41 +62,26 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Hot reload safe initialization
+    _menuStream ??= FirebaseService.getMenu(widget.restaurant.id);
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: StreamBuilder<List<MenuCategory>>(
-        stream: FirebaseService.getMenu(widget.restaurant.id),
+        stream: _menuStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Menü yüklenirken hata oluştu: ${snapshot.error}'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => setState(() {}),
-                      child: const Text('Tekrar Dene'),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return Center(child: Text('Hata: ${snapshot.error}'));
           }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final categories = snapshot.data ?? [];
+          final categories = snapshot.data!;
+          if (categories.isEmpty) {
+            return const Center(child: Text('Menü bulunamadı'));
+          }
+
           final double totalPrice = _calculateTotalPrice(categories);
           final int totalItems = _selectedItems.values.fold(
             0,
@@ -135,13 +127,6 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                               color: AppColors.white,
                             ),
                           ),
-                          Text(
-                            widget.restaurant.distance,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.white.withOpacity(0.8),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -149,75 +134,29 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                 ),
               ),
 
-              // Başlık
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Menü',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Askıya eklemek istediğiniz ürünleri seçin',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
+              // Content
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: categories.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    if (category.items.isEmpty) return const SizedBox.shrink();
+
+                    return _CategoryAccordion(
+                      key: ValueKey(category.id),
+                      category: category,
+                      defaultExpanded: index == 0,
+                      icon: _getCategoryIcon(category.name),
+                      itemBuilder: (item) => _buildMenuItem(item),
+                    );
+                  },
                 ),
               ),
 
-              // Menü Listesi
-              Expanded(
-                child: categories.isEmpty
-                    ? const Center(
-                        child: Text('Bu restoranın menüsü henüz yok.'),
-                      )
-                    : ListView.builder(
-                        padding: EdgeInsets.zero,
-                        itemCount: categories.length,
-                        itemBuilder: (context, categoryIndex) {
-                          final category = categories[categoryIndex];
-                          if (category.items.isEmpty)
-                            return const SizedBox.shrink();
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  16,
-                                  8,
-                                ),
-                                child: Text(
-                                  category.name,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              ...category.items.map(
-                                (item) => _buildMenuItem(item),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-              ),
-
-              // Alt Bar
+              // Checkout Bar
               if (totalItems > 0)
                 Container(
                   padding: EdgeInsets.only(
@@ -303,111 +242,256 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
     );
   }
 
+  // Helper helper to get icon based on category name
+  IconData _getCategoryIcon(String categoryName) {
+    // Dynamic Icon Logic removed to prevent "Ready-made" confusion.
+    // Using a generic icon for all categories ensures the user knows these are THEIR categories.
+    return Icons.restaurant_menu;
+  }
+
+  // Custom Accordion Widget to match the design (Green header, white body)
   Widget _buildMenuItem(MenuItem item) {
     final count = _selectedItems[item.id] ?? 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: count > 0
-            ? AppColors.primaryGreen.withOpacity(0.05)
-            : AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: count > 0
-              ? AppColors.primaryGreen.withOpacity(0.3)
-              : AppColors.inputBorder.withOpacity(0.3),
-        ),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
       ),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
+            child: Text(
+              item.name,
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            '₺${item.price.toStringAsFixed(0)}',
+            style: const TextStyle(
+              fontSize: 15,
+              color: AppColors.primaryGreen,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Action Button or Quantity Control
+          if (count == 0)
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _selectedItems[item.id] = 1;
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '₺${item.price.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryGreen,
-                  ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-              ],
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Askıya Gönder',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (count > 1) {
+                          _selectedItems[item.id] = count - 1;
+                        } else {
+                          _selectedItems.remove(item.id);
+                        }
+                      });
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Icon(Icons.remove, size: 16, color: Colors.white),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedItems[item.id] = count + 1;
+                      });
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Icon(Icons.add, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // This needs to be passed to _CategoryAccordion builder in the main build method,
+  // but _CategoryAccordion expects a simple builder.
+  // We need to update _CategoryAccordion to accept an icon as well.
+}
+
+class _CategoryAccordion extends StatefulWidget {
+  final MenuCategory category;
+  final Widget Function(MenuItem) itemBuilder;
+  final bool defaultExpanded;
+  final IconData icon; // Icon added
+
+  const _CategoryAccordion({
+    super.key,
+    required this.category,
+    required this.itemBuilder,
+    this.defaultExpanded = false,
+    this.icon = Icons.fastfood,
+  });
+
+  @override
+  State<_CategoryAccordion> createState() => _CategoryAccordionState();
+}
+
+class _CategoryAccordionState extends State<_CategoryAccordion> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.defaultExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12), // Spacing between accordions
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(
+          12,
+        ), // Rounded corners for valid card look
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: _isExpanded
+            ? null
+            : Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          // Header
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: _isExpanded ? const Color(0xFF3E7C4B) : AppColors.white,
+                // Only round top corners if expanded, otherwise all corners are handled by parent
+              ),
+              child: Row(
+                children: [
+                  // Category Icon
+                  Icon(
+                    widget.icon,
+                    color: _isExpanded
+                        ? AppColors.white
+                        : const Color(
+                            0xFFC59F60,
+                          ), // Gold/Brown icon color from image
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.category.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _isExpanded
+                            ? AppColors.white
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.5 : 0, // 180 degree rotation
+                    duration: const Duration(milliseconds: 300),
+                    child: Icon(
+                      Icons.keyboard_arrow_down, // Rotate to up
+                      color: _isExpanded ? AppColors.white : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // Miktar seçici
-          Row(
-            children: [
-              if (count > 0)
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (count > 1) {
-                        _selectedItems[item.id] = count - 1;
-                      } else {
-                        _selectedItems.remove(item.id);
-                      }
-                    });
-                  },
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryGreen.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.remove,
-                      size: 18,
-                      color: AppColors.primaryGreen,
-                    ),
-                  ),
-                ),
-              if (count > 0)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    '$count',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedItems[item.id] = count + 1;
-                  });
-                },
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryGreen,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add,
-                    size: 18,
+          // Body with Animation
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _isExpanded
+                ? Container(
                     color: AppColors.white,
-                  ),
-                ),
-              ),
-            ],
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(0),
+                      itemCount: widget.category.items.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      itemBuilder: (context, index) {
+                        return widget.itemBuilder(widget.category.items[index]);
+                      },
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),

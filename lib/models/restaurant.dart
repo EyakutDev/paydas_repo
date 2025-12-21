@@ -7,6 +7,7 @@ class Restaurant {
   final double latitude;
   final double longitude;
   final int askiItemCount;
+  final double rating; // Added rating
 
   Restaurant({
     required this.id,
@@ -17,6 +18,7 @@ class Restaurant {
     required this.latitude,
     required this.longitude,
     this.askiItemCount = 0,
+    this.rating = 0.0, // Default value
   });
 
   // Demo verisi için factory
@@ -34,6 +36,7 @@ class Restaurant {
       latitude: 41.0082,
       longitude: 28.9784,
       askiItemCount: askiItemCount,
+      rating: 4.5, // Demo rating
     );
   }
   factory Restaurant.fromMap(Map<String, dynamic> map, String id) {
@@ -45,7 +48,8 @@ class Restaurant {
       imageUrl: map['imageUrl'],
       latitude: map['latitude'] ?? 41.0082,
       longitude: map['longitude'] ?? 28.9784,
-      askiItemCount: map['askiCount'] ?? 0, // Counter field varsa
+      askiItemCount: map['askiCount'] ?? 0,
+      rating: (map['rating'] ?? 0.0).toDouble(), // Fetch rating
     );
   }
 }

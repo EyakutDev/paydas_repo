@@ -3,6 +3,7 @@ import '../constants/app_colors.dart';
 import '../widgets/business_login_form.dart';
 import '../widgets/user_login_form.dart';
 import '../widgets/muhtar_login_form.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -128,7 +129,20 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   GestureDetector(
                     onTap: () {
-                      Navigator.pop(context);
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        // Eğer pop yapılacak bir sayfa yoksa (örneğin doğrulama sonrası buraya geldiysek)
+                        // Register ekranına manuel gitmemiz lazım.
+                        // Ancak RegisterScreen'i import etmemiz gerekecek.
+                        // Şimdilik route kullanmadığımız için direkt import ekleyelim.
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const RegisterScreen(),
+                          ),
+                        );
+                      }
                     },
                     child: const Text(
                       'Kayıt Ol',
