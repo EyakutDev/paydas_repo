@@ -5,76 +5,9 @@ Paydaş, toplumsal dayanışmayı artırmak amacıyla geliştirilmiş, ihtiyaç 
 
 ## 📷 Görseller
 
-<p align="center">
-  <a href="Ekran görüntüsü 2025-12-21 130338-1.png">
-    <img src="Ekran görüntüsü 2025-12-21 130338-1.png" width="230">
-  </a>
-  <a href="image-13.png">
-    <img src="image-13.png" width="230">
-  </a>
-  <a href="Ekran görüntüsü 2025-12-21 130405.png">
-    <img src="Ekran görüntüsü 2025-12-21 130405.png" width="230">
-  </a>
-</p>
-
-<p align="center">
-  <a href="image-15.png">
-    <img src="image-15.png" width="230">
-  </a>
-  <a href="image.png">
-    <img src="image.png" width="230">
-  </a>
-  <a href="image-1.png">
-    <img src="image-1.png" width="230">
-  </a>
-</p>
-
-<p align="center">
-  <a href="image-2.png">
-    <img src="image-2.png" width="230">
-  </a>
-  <a href="image-3.png">
-    <img src="image-3.png" width="230">
-  </a>
-  <a href="image-4.png">
-    <img src="image-4.png" width="230">
-  </a>
-</p>
-
-<p align="center">
-  <a href="image-5.png">
-    <img src="image-5.png" width="230">
-  </a>
-  <a href="image-6.png">
-    <img src="image-6.png" width="230">
-  </a>
-  <a href="image-7.png">
-    <img src="image-7.png" width="230">
-  </a>
-</p>
-
-<p align="center">
-  <a href="image-8.png">
-    <img src="image-8.png" width="230">
-  </a>
-  <a href="image-9.png">
-    <img src="image-9.png" width="230">
-  </a>
-  <a href="image-10.png">
-    <img src="image-10.png" width="230">
-  </a>
-</p>
-
-<p align="center">
-  <a href="image-11.png">
-    <img src="image-11.png" width="230">
-  </a>
-  <a href="image-12.png">
-    <img src="image-12.png" width="230">
-  </a>
-  <a href="im
-
-
+![alt text](<Ekran görüntüsü 2025-12-21 135009.png>)
+![alt text](<Ekran görüntüsü 2025-12-21 135001.png>)
+![alt text](<Ekran görüntüsü 2025-12-21 134947.png>)
 
 ## 📱 Özellikler
 
