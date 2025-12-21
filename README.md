@@ -2,6 +2,29 @@
 
 Paydaş, toplumsal dayanışmayı artırmak amacıyla geliştirilmiş, ihtiyaç sahipleri ile hayırseverleri ve işletmeleri buluşturan bir "Askıda Yemek" platformudur. Bu uygulama sayesinde kullanıcılar restoranlardan yemek bağışında bulunabilir (askıya bırakabilir). Restoranlar isterse kendileri de askıya ürün ekleyebilir; ihtiyaç sahipleri ise bu bağışlardan faydalanabilir. Ayrıca Muhtarlar aracılığıyla ihtiyaç sahiplerinin tespiti ve sisteme kaydı sağlanır.
 
+
+## 📷 Görseller
+
+![alt text](<Ekran görüntüsü 2025-12-21 130338-1.png>)
+![alt text](image-13.png)
+![alt text](<Ekran görüntüsü 2025-12-21 130405.png>)
+![alt text](image-15.png)
+![alt text](image.png)
+![alt text](image-1.png)
+![alt text](image-2.png)
+![alt text](image-3.png)
+![alt text](image-4.png)
+![alt text](image-5.png)
+![alt text](image-6.png)
+![alt text](image-7.png)
+![alt text](image-8.png)
+![alt text](image-9.png)
+![alt text](image-10.png)
+![alt text](image-11.png)
+![alt text](image-12.png)
+![alt text](image-14.png)
+
+
 ## 📱 Özellikler
 
 Uygulama 3 temel kullanıcı rolü üzerine kurgulanmıştır:
@@ -84,6 +107,4 @@ Projeyi yerel ortamınızda çalıştırmak için:
     flutter run
     ```
 
-## 📷 Görseller
 
-![Uygulama Ekran Görüntüsü](assets/images/register_preview.png)
