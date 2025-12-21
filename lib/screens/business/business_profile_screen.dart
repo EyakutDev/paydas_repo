@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
 import '../../services/firebase_service.dart';
+import 'business_profile_edit_screen.dart';
 import '../register_screen.dart';
 
 class BusinessProfileScreen extends StatelessWidget {
@@ -38,7 +39,6 @@ class BusinessProfileScreen extends StatelessWidget {
           final district = data['district'] as String? ?? '';
 
           final totalAski = stats['totalAski'] ?? 0;
-          final totalDelivered = stats['totalDelivered'] ?? 0;
 
           return Column(
             children: [
@@ -71,7 +71,15 @@ class BusinessProfileScreen extends StatelessWidget {
                         const Spacer(),
                         IconButton(
                           onPressed: () {
-                            // Düzenleme yapılabilir
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => BusinessProfileEditScreen(
+                                  businessId: businessId,
+                                  currentData: data,
+                                ),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.edit, color: AppColors.white),
                         ),
@@ -152,49 +160,26 @@ class BusinessProfileScreen extends StatelessWidget {
                               'Askıya Eklenen',
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatCard(
-                              totalDelivered.toString(),
-                              'Teslim Edilen',
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Bekleyen Sayısı (Ayrı Stream)
-                          Expanded(
-                            child: StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseService.businesses
-                                  .doc(businessId)
-                                  .collection('orders')
-                                  .where('status', isEqualTo: 'pending')
-                                  .snapshots(),
-                              builder: (context, snapshot) {
-                                final pendingCount = snapshot.hasData
-                                    ? snapshot.data!.size
-                                    : 0;
-                                return _buildStatCard(
-                                  pendingCount.toString(),
-                                  'Bekleyen',
-                                );
-                              },
-                            ),
-                          ),
                         ],
                       ),
 
                       const SizedBox(height: 24),
 
-                      // Çalışma saatleri (Şimdilik statik, sonra eklenebilir)
+                      // Çalışma saatleri (Dinamik)
                       _buildSectionTitle('Çalışma Saatleri'),
                       _buildInfoCard(
                         Icons.access_time,
                         'Hafta içi',
-                        '09:00 - 22:00',
+                        (data['workingHours']
+                                as Map<String, dynamic>?)?['weekday'] ??
+                            '09:00 - 22:00',
                       ),
                       _buildInfoCard(
                         Icons.access_time,
                         'Hafta sonu',
-                        '10:00 - 23:00',
+                        (data['workingHours']
+                                as Map<String, dynamic>?)?['weekend'] ??
+                            '10:00 - 23:00',
                       ),
 
                       const SizedBox(height: 32),

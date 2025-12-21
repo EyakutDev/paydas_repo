@@ -5,6 +5,7 @@ import '../../services/firebase_service.dart';
 import '../../constants/app_colors.dart';
 import '../../widgets/user/qr_code_widget.dart';
 import '../register_screen.dart';
+import 'user_profile_edit_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,7 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadUser();
   }
 
@@ -92,7 +93,46 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     IconButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        // User verisi snapshot'tan
+
+                        // Snapshot'a buradan erişmek zor, veriyi parent'tan alalım veya null check yapalım
+                        // Ancak FutureBuilder aşağıda. En temizi settings butonunu FutureBuilder içine almak
+                        // VEYA burada snapshot verisi henüz yoksa açmamak.
+                        // BASİT YÖNTEM: Settings butonunu FutureBuilder'ın child'ı olan Column içine taşıyalım
+                        // FAKAT tasarım bozulur.
+                        // ALTERNATİF: _loadUser tekrar çağırıp veriyi alabiliriz ama zaten _userFuture var.
+                        // FAKAT veri hazır mı?
+                        // EN İYİSİ: Settings butonunu FutureBuilder içine koymak yerine,
+                        // _userFuture.then ile veriyi alıp açmak veya Stream kullanmak.
+                        // Ancak kod yapısını çok bozmamak için:
+                        // Butona basınca veriyi firestore'dan tekrar çekip açalım (veya cache).
+                        // Basitlik için:
+                        final userId =
+                            FirebaseService.currentUserId ??
+                            FirebaseAuth.instance.currentUser?.uid;
+                        if (userId != null) {
+                          FirebaseService.getUser(userId).then((doc) {
+                            if (doc != null && doc.exists && context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UserProfileEditScreen(
+                                    userId: userId,
+                                    currentData:
+                                        doc.data() as Map<String, dynamic>,
+                                  ),
+                                ),
+                              ).then((_) {
+                                // Dönünce sayfayı yenile
+                                setState(() {
+                                  _loadUser();
+                                });
+                              });
+                            }
+                          });
+                        }
+                      },
                       icon: const Icon(Icons.settings, color: AppColors.white),
                     ),
                   ],
@@ -193,7 +233,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 tabs: const [
                   Tab(height: 40, text: 'Rezervasyonlar'),
                   Tab(height: 40, text: 'Bağışlarım'),
-                  Tab(height: 40, text: 'QR Kod'),
                 ],
               ),
             ),
@@ -206,7 +245,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               children: [
                 _buildActiveReservationsTab(),
                 _buildDonationHistoryTab(),
-                _buildQRCodeTab(),
               ],
             ),
           ),
@@ -667,71 +705,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           },
         );
       },
-    );
-  }
-
-  Widget _buildQRCodeTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const SizedBox(height: 16),
-
-          const Text(
-            'Genel Onay Kodu',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Askıdan ürün alırken bu kodu\nrestorana gösterin',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary.withOpacity(0.8),
-              height: 1.5,
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // QR Kod
-          QRCodeWidget(
-            data: 'PAYDAS-USER-${DateTime.now().millisecondsSinceEpoch}',
-            expiresInSeconds: 300, // 5 dakika
-            onExpired: () {},
-          ),
-
-          const SizedBox(height: 32),
-
-          // Uyarı
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Bu genel QR kod 5 dakika geçerlidir.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange.shade700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 

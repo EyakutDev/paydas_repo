@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
+import '../../services/firebase_service.dart';
 import '../../widgets/custom_text_field.dart';
+import '../register_screen.dart';
 
 class MuhtarHomeScreen extends StatefulWidget {
   final String muhtarName;
@@ -12,8 +15,6 @@ class MuhtarHomeScreen extends StatefulWidget {
 }
 
 class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
-  final List<Map<String, String>> _applicants = [];
-
   // Form controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _surnameController = TextEditingController();
@@ -29,7 +30,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
     super.dispose();
   }
 
-  void _addApplicant() {
+  Future<void> _addApplicant() async {
     if (_nameController.text.isEmpty ||
         _surnameController.text.isEmpty ||
         _phoneController.text.isEmpty) {
@@ -42,28 +43,48 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
       return;
     }
 
-    setState(() {
-      _applicants.add({
-        'name': _nameController.text,
-        'surname': _surnameController.text,
-        'phone': _phoneController.text,
-        'address': _addressController.text,
-        'date': DateTime.now().toString().substring(0, 10),
+    try {
+      await FirebaseService.addApplication({
+        'name': _nameController.text.trim(),
+        'surname': _surnameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim(),
       });
-    });
 
-    // Formu temizle
-    _nameController.clear();
-    _surnameController.clear();
-    _phoneController.clear();
-    _addressController.clear();
+      if (mounted) {
+        // Formu temizle
+        _nameController.clear();
+        _surnameController.clear();
+        _phoneController.clear();
+        _addressController.clear();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Başvuru kaydedildi'),
-        backgroundColor: AppColors.primaryGreen,
-      ),
-    );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Başvuru kaydedildi'),
+            backgroundColor: AppColors.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    await FirebaseService.signOut();
+    if (mounted) {
+      // Kayıt ol / Giriş yap ekranına (RegisterScreen) yönlendir
+      // MainScreen'e gidip oradan Login/Register seçileceği varsayımı ile:
+      // Veya direkt RegisterScreen'e:
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const RegisterScreen()),
+        (route) => false,
+      );
+    }
   }
 
   @override
@@ -144,11 +165,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst);
-                      },
+                      onPressed: _logout,
                       icon: const Icon(Icons.logout, color: AppColors.white),
                     ),
                   ],
@@ -268,46 +285,50 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Kayıtlı başvurular
-                  if (_applicants.isNotEmpty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Kayıtlı Başvurular',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
+                  // Kayıtlı başvurular (Firestore Stream)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Kayıtlı Başvurular',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryGreen.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${_applicants.length} kişi',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryGreen,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ...List.generate(_applicants.length, (index) {
-                      final applicant = _applicants[index];
-                      return _buildApplicantCard(applicant, index);
-                    }),
-                  ] else
-                    _buildEmptyState(),
+                      ),
+                      // Stream ile sayıyı alabiliriz ama şimdilik statik
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseService.applications
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Hata: ${snapshot.error}'));
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final docs = snapshot.data?.docs ?? [];
+
+                      if (docs.isEmpty) {
+                        return _buildEmptyState();
+                      }
+
+                      return Column(
+                        children: List.generate(docs.length, (index) {
+                          final data =
+                              docs[index].data() as Map<String, dynamic>;
+                          return _buildApplicantCard(data);
+                        }),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -317,7 +338,17 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
     );
   }
 
-  Widget _buildApplicantCard(Map<String, String> applicant, int index) {
+  Widget _buildApplicantCard(Map<String, dynamic> applicant) {
+    // Tarih formatı (Simple)
+    String dateStr = '';
+    if (applicant['createdAt'] != null) {
+      // Timestamp ise
+      if (applicant['createdAt'] is Timestamp) {
+        final date = (applicant['createdAt'] as Timestamp).toDate();
+        dateStr = "${date.day}/${date.month}/${date.year}";
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -344,7 +375,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
             ),
             child: Center(
               child: Text(
-                '${applicant['name']![0]}${applicant['surname']![0]}',
+                '${(applicant['name'] as String? ?? '').isNotEmpty ? applicant['name'][0] : '?'}${(applicant['surname'] as String? ?? '').isNotEmpty ? applicant['surname'][0] : '?'}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -378,7 +409,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      applicant['phone']!,
+                      applicant['phone'] ?? '',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary.withOpacity(0.8),
@@ -386,7 +417,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
                     ),
                   ],
                 ),
-                if (applicant['address']!.isNotEmpty) ...[
+                if ((applicant['address'] as String? ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -416,7 +447,7 @@ class _MuhtarHomeScreenState extends State<MuhtarHomeScreen> {
 
           // Tarih
           Text(
-            applicant['date']!,
+            dateStr,
             style: TextStyle(
               fontSize: 11,
               color: AppColors.textSecondary.withOpacity(0.6),

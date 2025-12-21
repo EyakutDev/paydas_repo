@@ -18,6 +18,8 @@ class FirebaseService {
       _firestore.collection('reservations');
   static CollectionReference get donations =>
       _firestore.collection('donations');
+  static CollectionReference get applications =>
+      _firestore.collection('applications');
 
   // ==================== AUTH ====================
 
@@ -560,9 +562,13 @@ class FirebaseService {
         await reservations.doc(doc.id).update({'status': 'completed'});
 
         // İstatistik güncelle: Toplam teslim edilen
-        await businesses.doc(businessId).update({
-          'stats.totalDelivered': FieldValue.increment(1),
-        });
+        // İstatistik güncelle: Toplam teslim edilen artır, askıdaki düşür
+        await businesses.doc(businessId).set({
+          'stats': {
+            'totalDelivered': FieldValue.increment(1),
+            'totalAski': FieldValue.increment(-1),
+          },
+        }, SetOptions(merge: true));
 
         return data; // İşlem başarılı
       } else {
@@ -574,6 +580,17 @@ class FirebaseService {
       }
     }
     return null;
+  }
+
+  // ==================== MUHTAR ====================
+
+  /// Yardım başvurusu ekle
+  static Future<void> addApplication(Map<String, dynamic> data) async {
+    await applications.add({
+      ...data,
+      'createdAt': FieldValue.serverTimestamp(),
+      'status': 'pending', // pending, reviewed, approved, rejected
+    });
   }
 
   // ==================== DONATIONS ====================

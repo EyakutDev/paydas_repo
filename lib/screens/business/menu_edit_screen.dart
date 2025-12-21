@@ -47,11 +47,6 @@ class _MenuEditScreenState extends State<MenuEditScreen> {
           ),
         )
         .toList();
-
-    // Eğer hiç kategori yoksa varsayılan bir tane ekle
-    if (_categories.isEmpty) {
-      _categories.add(MenuCategory(id: '1', name: 'Çorba', items: []));
-    }
   }
 
   @override
