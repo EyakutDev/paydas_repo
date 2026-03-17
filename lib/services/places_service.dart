@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/restaurant.dart';
 
 class PlacesService {
   // ⚠️ DİKKAT: Buraya kendi Google Places API Key'inizi girmelisiniz.
   // Google Cloud Console'dan "Places API (New)" veya "Places API" servisini aktif edip API Key almalısınız.
   // Ayrıca faturalandırma hesabının bağlı olduğundan emin olun.
-  static const String _apiKey = 'YOUR_GOOGLE_PLACES_API_KEY';
+  static String get _apiKey => dotenv.env['PLACES_API_KEY'] ?? 'YOUR_GOOGLE_PLACES_API_KEY';
 
   static Future<List<Restaurant>> getNearbyPlaces(LatLng location) async {
     if (_apiKey == 'YOUR_GOOGLE_PLACES_API_KEY') {
